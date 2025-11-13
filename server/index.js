@@ -91,6 +91,87 @@ if (process.env.DATABASE_URL) {
   console.log('Using SQLite for storage');
 }
 
+// Setup/Seed function for default data
+async function setupDefaults() {
+  try {
+    // Set default store settings
+    const defaultSettings = {
+      id: 1,
+      name: 'Moikafood',
+      address: '',
+      phone: '',
+      logoUrl: '/publics/Logo.jpg',
+      receiptFooter: ''
+    };
+
+    if (useNeon) {
+      const existing = await db`SELECT id FROM settings WHERE id = 1`;
+      if (existing && existing.length > 0) {
+        await db`UPDATE settings SET name = ${defaultSettings.name}, logoUrl = ${defaultSettings.logoUrl} WHERE id = 1`;
+      } else {
+        await db`INSERT INTO settings (id, name, address, phone, logoUrl, receiptFooter) 
+          VALUES (1, ${defaultSettings.name}, ${defaultSettings.address}, ${defaultSettings.phone}, ${defaultSettings.logoUrl}, ${defaultSettings.receiptFooter})`;
+      }
+      
+      // Remove unwanted products
+      await db`DELETE FROM products WHERE sku = 'MKN-002' OR sku = 'RKK-001'`;
+      
+      // Add BAM-001 product
+      const bamProduct = {
+        id: 'BAM-001',
+        sku: 'BAM-001',
+        name: 'Baso Aci Tulang Rangu',
+        category: 'Snack',
+        price: 25000,
+        stock: 50,
+        imageUrl: '/publics/Baso Aci Tulang Rangu.jpg'
+      };
+      
+      const existing_bam = await db`SELECT id FROM products WHERE sku = 'BAM-001'`;
+      if (!existing_bam || existing_bam.length === 0) {
+        await db`INSERT INTO products (id, sku, name, category, price, stock, imageUrl) 
+          VALUES (${bamProduct.id}, ${bamProduct.sku}, ${bamProduct.name}, ${bamProduct.category}, ${bamProduct.price}, ${bamProduct.stock}, ${bamProduct.imageUrl})`;
+      }
+    } else {
+      // SQLite version
+      db.run('INSERT OR REPLACE INTO settings (id, name, address, phone, logoUrl, receiptFooter) VALUES (1, ?, ?, ?, ?, ?)',
+        [defaultSettings.name, defaultSettings.address, defaultSettings.phone, defaultSettings.logoUrl, defaultSettings.receiptFooter],
+        (err) => {
+          if (err) console.error('Settings setup error:', err.message);
+        }
+      );
+      
+      db.run('DELETE FROM products WHERE sku = ? OR sku = ?', ['MKN-002', 'RKK-001'], (err) => {
+        if (err) console.error('Delete products error:', err.message);
+      });
+      
+      const bamProduct = {
+        id: 'BAM-001',
+        sku: 'BAM-001',
+        name: 'Baso Aci Tulang Rangu',
+        category: 'Snack',
+        price: 25000,
+        stock: 50,
+        imageUrl: '/publics/Baso Aci Tulang Rangu.jpg'
+      };
+      
+      db.run('INSERT OR IGNORE INTO products (id, sku, name, category, price, stock, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [bamProduct.id, bamProduct.sku, bamProduct.name, bamProduct.category, bamProduct.price, bamProduct.stock, bamProduct.imageUrl],
+        (err) => {
+          if (err) console.error('Insert BAM-001 error:', err.message);
+        }
+      );
+    }
+    
+    console.log('Default setup completed');
+  } catch (err) {
+    console.error('Setup error:', err.message);
+  }
+}
+
+// Run setup on server start (optional - can also be triggered manually)
+setTimeout(() => setupDefaults(), 1000);
+
 // Products - Remove /api prefix since Vercel routes handle it
 app.get('/products', async (req, res) => {
   try {
@@ -260,6 +341,16 @@ app.post('/settings', async (req, res) => {
         }
       );
     }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Setup endpoint - manually trigger default data setup
+app.post('/setup', async (req, res) => {
+  try {
+    await setupDefaults();
+    res.json({ success: true, message: 'Defaults configured' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
