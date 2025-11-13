@@ -1,6 +1,9 @@
-import React, { createContext, useReducer, useContext, type Dispatch } from 'react';
+import React, { createContext, useReducer, useContext, type Dispatch, useEffect } from 'react';
 import type { Product, Transaction, StoreSettings } from '../types';
 import { initialProducts, initialTransactions, initialSettings } from '../data/mockData';
+
+// API base (frontend will use this to call the local server)
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:4000';
 
 interface AppState {
   products: Product[];
@@ -13,7 +16,9 @@ type Action =
   | { type: 'UPDATE_PRODUCT'; payload: Product }
   | { type: 'DELETE_PRODUCT'; payload: string } // id
   | { type: 'UPDATE_SETTINGS'; payload: StoreSettings }
-  | { type: 'PROCESS_TRANSACTION'; payload: Transaction };
+  | { type: 'PROCESS_TRANSACTION'; payload: Transaction }
+  | { type: 'LOAD_PRODUCTS'; payload: Product[] }
+  | { type: 'LOAD_TRANSACTIONS'; payload: Transaction[] };
 
 const initialState: AppState = {
   products: initialProducts,
@@ -23,6 +28,10 @@ const initialState: AppState = {
 
 const storeReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
+    case 'LOAD_PRODUCTS':
+      return { ...state, products: action.payload };
+    case 'LOAD_TRANSACTIONS':
+      return { ...state, transactions: action.payload };
     case 'ADD_PRODUCT':
       return { ...state, products: [...state.products, action.payload] };
     case 'UPDATE_PRODUCT':

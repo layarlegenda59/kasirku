@@ -5,6 +5,8 @@ import type { Product } from '../types';
 import Modal from '../components/Modal';
 import ProductForm from '../components/ProductForm';
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
+
 const Products: React.FC = () => {
   const { state, dispatch } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,18 +39,35 @@ const Products: React.FC = () => {
     setEditingProduct(null);
   };
 
-  const handleSaveProduct = (product: Product) => {
-    if (editingProduct) {
-      dispatch({ type: 'UPDATE_PRODUCT', payload: product });
-    } else {
-      dispatch({ type: 'ADD_PRODUCT', payload: product });
+  const handleSaveProduct = async (product: Product) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(product),
+      });
+      if (!res.ok) throw new Error('Gagal menyimpan produk');
+      if (editingProduct) {
+        dispatch({ type: 'UPDATE_PRODUCT', payload: product });
+      } else {
+        dispatch({ type: 'ADD_PRODUCT', payload: product });
+      }
+      closeModal();
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat menyimpan produk.');
     }
-    closeModal();
   };
 
-  const handleDeleteProduct = (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal menghapus produk');
       dispatch({ type: 'DELETE_PRODUCT', payload: id });
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat menghapus produk.');
     }
   };
 

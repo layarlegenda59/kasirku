@@ -5,6 +5,8 @@ import PaymentModal from '../components/PaymentModal';
 import Receipt from '../components/Receipt';
 import { NavLink } from 'react-router-dom';
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
+
 const Cashier: React.FC = () => {
   const { state, dispatch } = useStore();
   const { products, settings } = state;
@@ -50,11 +52,22 @@ const Cashier: React.FC = () => {
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  const handleConfirmTransaction = (transaction: Transaction) => {
-    dispatch({ type: 'PROCESS_TRANSACTION', payload: transaction });
-    setLastTransaction(transaction);
-    setCart([]);
-    setPaymentModalOpen(false);
+  const handleConfirmTransaction = async (transaction: Transaction) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(transaction),
+      });
+      if (!res.ok) throw new Error('Gagal memproses transaksi');
+      dispatch({ type: 'PROCESS_TRANSACTION', payload: transaction });
+      setLastTransaction(transaction);
+      setCart([]);
+      setPaymentModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat memproses transaksi.');
+    }
   };
   
   useEffect(() => {

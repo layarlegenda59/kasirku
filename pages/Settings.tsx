@@ -4,6 +4,8 @@ import Layout from '../components/Layout';
 import { useStore } from '../context/StoreContext';
 import type { StoreSettings } from '../types';
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
+
 const Settings: React.FC = () => {
   const { state, dispatch } = useStore();
   const [settings, setSettings] = useState<StoreSettings>(state.settings);
@@ -24,11 +26,22 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+    try {
+      const res = await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      if (!res.ok) throw new Error('Gagal menyimpan pengaturan');
+      dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat menyimpan pengaturan.');
+    }
   };
 
   return (
