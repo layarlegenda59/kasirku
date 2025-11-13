@@ -1,95 +1,5 @@
-// Load local environment variables (when present) before anything else
-try { require('dotenv').config(); } catch (e) { /* dotenv is optional in production */ }
-
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const path = require('path');
-
-const app = express();
-app.use(cors());
-app.use(bodyParser.json({ limit: '5mb' }));
-
-// Storage initialization
-let db = null;
-let useNeon = false;
-
-// Initialize storage based on environment
-if (process.env.DATABASE_URL) {
-  // Production: Use Neon PostgreSQL
-  const { neon } = require('@neondatabase/serverless');
-  db = neon(process.env.DATABASE_URL);
-  useNeon = true;
-  console.log('Using Neon PostgreSQL for storage');
-  
-  // Initialize tables if they don't exist
-  db`CREATE TABLE IF NOT EXISTS products (
-    id TEXT PRIMARY KEY,
-    sku TEXT,
-    name TEXT,
-    category TEXT,
-    price INTEGER,
-    stock INTEGER,
-    imageUrl TEXT
-  );`.catch(() => {});
-  
-  db`CREATE TABLE IF NOT EXISTS transactions (
-    id TEXT PRIMARY KEY,
-    date TEXT,
-    items TEXT,
-    total INTEGER,
-    paymentMethod TEXT,
-    cashierName TEXT
-  );`.catch(() => {});
-  
-  db`CREATE TABLE IF NOT EXISTS settings (
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    address TEXT,
-    phone TEXT,
-    logoUrl TEXT,
-    receiptFooter TEXT
-  );`.catch(() => {});
-} else {
-  // Development: Use SQLite
-  const sqlite3 = require('sqlite3').verbose();
-  const DB_PATH = path.join(__dirname, 'kasirku.db');
-  db = new sqlite3.Database(DB_PATH);
-  useNeon = false;
-  
-  // Initialize SQLite tables
-  db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY,
-      sku TEXT,
-      name TEXT,
-      category TEXT,
-      price INTEGER,
-      stock INTEGER,
-      imageUrl TEXT
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS transactions (
-      id TEXT PRIMARY KEY,
-      date TEXT,
-      items TEXT,
-      total INTEGER,
-      paymentMethod TEXT,
-      cashierName TEXT
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS settings (
-      id INTEGER PRIMARY KEY,
-      name TEXT,
-      address TEXT,
-      phone TEXT,
-      logoUrl TEXT,
-      receiptFooter TEXT
-    )`);
-  });
-  
-  console.log('Using SQLite for storage');
-}
+// Use the extracted app so it can be reused by the serverless wrapper
+const { app, db, useNeon } = require('./app');
 
 // Setup/Seed function for default data
 async function setupDefaults() {
@@ -356,5 +266,8 @@ app.post('/setup', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server listening on http://localhost:${PORT}`));
+// If this file is run directly start the server (local dev)
+if (require.main === module) {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => console.log(`Server listening on http://localhost:${PORT}`));
+}

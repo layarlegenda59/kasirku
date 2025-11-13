@@ -1,17 +1,10 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "server/index.js": {
-      "runtime": "vercel/node@2.0.0",
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
   "routes": [
     {
-      "src": "/api/(?<path>.*)",
-      "dest": "/server?path=$path",
+      "src": "/api/(.*)",
+      "dest": "/api",
       "methods": ["GET", "POST", "DELETE", "PUT"]
     },
     {
