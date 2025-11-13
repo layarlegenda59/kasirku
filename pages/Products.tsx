@@ -1,14 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import Layout from '../components/Layout';
-import { useStore } from '../context/StoreContext';
+import { useApi } from '../context/ApiContext';
 import type { Product } from '../types';
 import Modal from '../components/Modal';
 import ProductForm from '../components/ProductForm';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
-
 const Products: React.FC = () => {
-  const { state, dispatch } = useStore();
+  const { state, addProduct, updateProduct, deleteProduct, error } = useApi();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
@@ -41,16 +39,12 @@ const Products: React.FC = () => {
 
   const handleSaveProduct = async (product: Product) => {
     try {
-      const res = await fetch(`${API_BASE}/api/products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product),
-      });
-      if (!res.ok) throw new Error('Gagal menyimpan produk');
       if (editingProduct) {
-        dispatch({ type: 'UPDATE_PRODUCT', payload: product });
+        await updateProduct(product);
       } else {
-        dispatch({ type: 'ADD_PRODUCT', payload: product });
+        // Remove id for new products - backend will generate it
+        const { id, ...productData } = product;
+        await addProduct(productData);
       }
       closeModal();
     } catch (err) {
@@ -62,9 +56,7 @@ const Products: React.FC = () => {
   const handleDeleteProduct = async (id: string) => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/products/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Gagal menghapus produk');
-      dispatch({ type: 'DELETE_PRODUCT', payload: id });
+      await deleteProduct(id);
     } catch (err) {
       console.error(err);
       alert('Terjadi kesalahan saat menghapus produk.');

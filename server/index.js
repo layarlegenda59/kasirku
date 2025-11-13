@@ -46,15 +46,15 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '5mb' }));
 
-// Products
-app.get('/api/products', (req, res) => {
+// Products - Remove /api prefix since Vercel routes handle it
+app.get('/products', (req, res) => {
   db.all('SELECT * FROM products', (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
-app.post('/api/products', (req, res) => {
+app.post('/products', (req, res) => {
   const p = req.body;
   db.run(
     `INSERT OR REPLACE INTO products (id, sku, name, category, price, stock, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -66,7 +66,7 @@ app.post('/api/products', (req, res) => {
   );
 });
 
-app.delete('/api/products/:id', (req, res) => {
+app.delete('/products/:id', (req, res) => {
   db.run('DELETE FROM products WHERE id = ?', [req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
@@ -74,15 +74,16 @@ app.delete('/api/products/:id', (req, res) => {
 });
 
 // Transactions
-app.get('/api/transactions', (req, res) => {
+app.get('/transactions', (req, res) => {
   db.all('SELECT * FROM transactions ORDER BY date DESC', (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
+    if (!rows) return res.json([]);
     const parsed = rows.map(r => ({ ...r, items: JSON.parse(r.items) }));
     res.json(parsed);
   });
 });
 
-app.post('/api/transactions', (req, res) => {
+app.post('/transactions', (req, res) => {
   const t = req.body;
   db.run(
     `INSERT INTO transactions (id, date, items, total, paymentMethod, cashierName) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -106,7 +107,7 @@ app.post('/api/transactions', (req, res) => {
 });
 
 // Settings
-app.get('/api/settings', (req, res) => {
+app.get('/settings', (req, res) => {
   db.get('SELECT * FROM settings WHERE id = 1', (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.json(null);
@@ -114,7 +115,7 @@ app.get('/api/settings', (req, res) => {
   });
 });
 
-app.post('/api/settings', (req, res) => {
+app.post('/settings', (req, res) => {
   const s = req.body;
   db.run(
     `INSERT INTO settings (id, name, address, phone, logoUrl, receiptFooter) VALUES (1, ?, ?, ?, ?, ?)

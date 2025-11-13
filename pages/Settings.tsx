@@ -1,13 +1,11 @@
 
 import React, { useState } from 'react';
 import Layout from '../components/Layout';
-import { useStore } from '../context/StoreContext';
+import { useApi } from '../context/ApiContext';
 import type { StoreSettings } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
-
 const Settings: React.FC = () => {
-  const { state, dispatch } = useStore();
+  const { state, updateSettings } = useApi();
   const [settings, setSettings] = useState<StoreSettings>(state.settings);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -29,13 +27,7 @@ const Settings: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-      if (!res.ok) throw new Error('Gagal menyimpan pengaturan');
-      dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
+      await updateSettings(settings);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
     } catch (err) {
