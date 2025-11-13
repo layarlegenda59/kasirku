@@ -7,22 +7,52 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '5mb' }));
 
-// Determine storage mode
+// Storage initialization
 let db = null;
-let useKV = false;
+let useNeon = false;
 
-// Initialize storage
-if (process.env.VERCEL || process.env.USE_KV) {
-  // Production: Use Vercel KV
-  const { kv } = require('@vercel/kv');
-  db = kv;
-  useKV = true;
-  console.log('Using Vercel KV for storage');
+// Initialize storage based on environment
+if (process.env.DATABASE_URL) {
+  // Production: Use Neon PostgreSQL
+  const { neon } = require('@neondatabase/serverless');
+  db = neon(process.env.DATABASE_URL);
+  useNeon = true;
+  console.log('Using Neon PostgreSQL for storage');
+  
+  // Initialize tables if they don't exist
+  db`CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY,
+    sku TEXT,
+    name TEXT,
+    category TEXT,
+    price INTEGER,
+    stock INTEGER,
+    imageUrl TEXT
+  );`.catch(() => {});
+  
+  db`CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    date TEXT,
+    items TEXT,
+    total INTEGER,
+    paymentMethod TEXT,
+    cashierName TEXT
+  );`.catch(() => {});
+  
+  db`CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    address TEXT,
+    phone TEXT,
+    logoUrl TEXT,
+    receiptFooter TEXT
+  );`.catch(() => {});
 } else {
   // Development: Use SQLite
   const sqlite3 = require('sqlite3').verbose();
   const DB_PATH = path.join(__dirname, 'kasirku.db');
   db = new sqlite3.Database(DB_PATH);
+  useNeon = false;
   
   // Initialize SQLite tables
   db.serialize(() => {
@@ -46,7 +76,7 @@ if (process.env.VERCEL || process.env.USE_KV) {
     )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS settings (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
+      id INTEGER PRIMARY KEY,
       name TEXT,
       address TEXT,
       phone TEXT,
@@ -61,9 +91,9 @@ if (process.env.VERCEL || process.env.USE_KV) {
 // Products - Remove /api prefix since Vercel routes handle it
 app.get('/products', async (req, res) => {
   try {
-    if (useKV) {
-      const products = await db.get('products:list') || [];
-      res.json(products);
+    if (useNeon) {
+      const products = await db`SELECT * FROM products ORDER BY id`;
+      res.json(products || []);
     } else {
       db.all('SELECT * FROM products', (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -79,15 +109,16 @@ app.post('/products', async (req, res) => {
   try {
     const p = req.body;
     
-    if (useKV) {
-      let products = await db.get('products:list') || [];
-      const existingIndex = products.findIndex(prod => prod.id === p.id);
-      if (existingIndex >= 0) {
-        products[existingIndex] = p;
-      } else {
-        products.push(p);
-      }
-      await db.set('products:list', products);
+    if (useNeon) {
+      await db`INSERT INTO products (id, sku, name, category, price, stock, imageUrl)
+        VALUES (${p.id}, ${p.sku}, ${p.name}, ${p.category}, ${p.price}, ${p.stock}, ${p.imageUrl})
+        ON CONFLICT(id) DO UPDATE SET 
+          sku = EXCLUDED.sku,
+          name = EXCLUDED.name,
+          category = EXCLUDED.category,
+          price = EXCLUDED.price,
+          stock = EXCLUDED.stock,
+          imageUrl = EXCLUDED.imageUrl`;
       res.json({ success: true });
     } else {
       db.run(
@@ -106,10 +137,8 @@ app.post('/products', async (req, res) => {
 
 app.delete('/products/:id', async (req, res) => {
   try {
-    if (useKV) {
-      let products = await db.get('products:list') || [];
-      products = products.filter(p => p.id !== req.params.id);
-      await db.set('products:list', products);
+    if (useNeon) {
+      await db`DELETE FROM products WHERE id = ${req.params.id}`;
       res.json({ success: true });
     } else {
       db.run('DELETE FROM products WHERE id = ?', [req.params.id], function (err) {
@@ -125,9 +154,14 @@ app.delete('/products/:id', async (req, res) => {
 // Transactions
 app.get('/transactions', async (req, res) => {
   try {
-    if (useKV) {
-      const transactions = await db.get('transactions:list') || [];
-      res.json(transactions);
+    if (useNeon) {
+      const transactions = await db`SELECT * FROM transactions ORDER BY date DESC`;
+      if (transactions && transactions.length > 0) {
+        const parsed = transactions.map(r => ({ ...r, items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items }));
+        res.json(parsed);
+      } else {
+        res.json([]);
+      }
     } else {
       db.all('SELECT * FROM transactions ORDER BY date DESC', (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -145,20 +179,14 @@ app.post('/transactions', async (req, res) => {
   try {
     const t = req.body;
     
-    if (useKV) {
-      let transactions = await db.get('transactions:list') || [];
-      transactions.unshift(t); // Add to beginning
-      await db.set('transactions:list', transactions);
+    if (useNeon) {
+      await db`INSERT INTO transactions (id, date, items, total, paymentMethod, cashierName)
+        VALUES (${t.id}, ${t.date}, ${JSON.stringify(t.items)}, ${t.total}, ${t.paymentMethod}, ${t.cashierName})`;
       
-      // Update product stock
-      let products = await db.get('products:list') || [];
+      // Update product stock for each item
       for (const item of t.items) {
-        const prodIdx = products.findIndex(p => p.id === item.productId);
-        if (prodIdx >= 0) {
-          products[prodIdx].stock -= item.quantity;
-        }
+        await db`UPDATE products SET stock = stock - ${item.quantity} WHERE id = ${item.productId}`;
       }
-      await db.set('products:list', products);
       res.json({ success: true });
     } else {
       db.run(
@@ -191,9 +219,9 @@ app.post('/transactions', async (req, res) => {
 // Settings
 app.get('/settings', async (req, res) => {
   try {
-    if (useKV) {
-      const settings = await db.get('settings:store') || null;
-      res.json(settings);
+    if (useNeon) {
+      const settings = await db`SELECT * FROM settings WHERE id = 1`;
+      res.json(settings && settings.length > 0 ? settings[0] : null);
     } else {
       db.get('SELECT * FROM settings WHERE id = 1', (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -209,8 +237,14 @@ app.post('/settings', async (req, res) => {
   try {
     const s = req.body;
     
-    if (useKV) {
-      await db.set('settings:store', s);
+    if (useNeon) {
+      // Check if settings exists
+      const existing = await db`SELECT id FROM settings WHERE id = 1`;
+      if (existing && existing.length > 0) {
+        await db`UPDATE settings SET name = ${s.name}, address = ${s.address}, phone = ${s.phone}, logoUrl = ${s.logoUrl}, receiptFooter = ${s.receiptFooter} WHERE id = 1`;
+      } else {
+        await db`INSERT INTO settings (id, name, address, phone, logoUrl, receiptFooter) VALUES (1, ${s.name}, ${s.address}, ${s.phone}, ${s.logoUrl}, ${s.receiptFooter})`;
+      }
       res.json({ success: true });
     } else {
       db.run(
