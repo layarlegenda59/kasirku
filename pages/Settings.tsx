@@ -4,7 +4,7 @@ import Layout from '../components/Layout';
 import { useStore } from '../context/StoreContext';
 import type { StoreSettings } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
+const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 
 const Settings: React.FC = () => {
   const { state, dispatch } = useStore();

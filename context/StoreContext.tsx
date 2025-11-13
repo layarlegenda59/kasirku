@@ -2,8 +2,8 @@ import React, { createContext, useReducer, useContext, type Dispatch, useEffect 
 import type { Product, Transaction, StoreSettings } from '../types';
 import { initialProducts, initialTransactions, initialSettings } from '../data/mockData';
 
-// API base (frontend will use this to call the local server)
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+// API base - use relative path for Vercel, or env var override
+const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 
 interface AppState {
   products: Product[];

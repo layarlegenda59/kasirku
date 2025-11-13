@@ -5,7 +5,7 @@ import type { Product } from '../types';
 import Modal from '../components/Modal';
 import ProductForm from '../components/ProductForm';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
+const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 
 const Products: React.FC = () => {
   const { state, dispatch } = useStore();

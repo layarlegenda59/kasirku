@@ -2,12 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
-const Database = require('sqlite3').Database;
+// For Vercel, use /tmp for temp storage; for local, use current dir
+const DB_PATH = process.env.VERCEL 
+  ? '/tmp/kasirku.db'
+  : path.join(__dirname, 'kasirku.db');
 
-const DB_PATH = path.join(__dirname, 'kasirku.db');
-
-const db = new Database(DB_PATH);
+const db = new sqlite3.Database(DB_PATH);
 
 // Initialize tables
 db.serialize(() => {
