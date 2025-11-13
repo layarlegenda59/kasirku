@@ -1,0 +1,5 @@
+{
+  "name": "KasirKu",
+  "description": "A web-based management dashboard for KasirKu, a Point of Sale system designed for small and medium-sized businesses (UMKM) in Indonesia. It allows store owners to manage products, view sales reports, and configure store settings.",
+  "requestFramePermissions": []
+}
